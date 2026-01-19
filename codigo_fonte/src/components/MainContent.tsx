@@ -1,0 +1,546 @@
+
+
+import React, { useState } from "react";
+import seatingMap from "@/assets/seating-map.jpg";
+import { Button } from "@/components/ui/button";
+import { Plus, Minus } from "lucide-react";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+interface Ticket {
+  id: string;
+  name: string;
+  date: string;
+  section: string;
+  price: number;
+}
+
+
+const tickets: Ticket[] = [
+  {
+    id: "1",
+    name: "Pista Premium [Inteira] Pré Venda",
+    date: "R$ 280,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 292.00,
+  },
+  {
+    id: "2",
+    name: "Pista Premium [Meia] Pré Venda",
+    date: "R$ 140,00 (+ taxa: R$ 8,00)",
+    section: "",
+    price: 148.00,
+  },
+  {
+    id: "3",
+    name: "Cadeira Inferior [Inteira] Pré Venda",
+    date: "R$ 240,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 252.00,
+  },
+  {
+    id: "4",
+    name: "Cadeira Inferior [Meia] Pré Venda",
+    date: "R$ 120,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 132.00,
+  },
+  {
+    id: "5",
+    name: "Pista Comum [Inteira] Pré Venda",
+    date: "R$ 210,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 222.00,
+  },
+  {
+    id: "6",
+    name: "Pista Comum [Meia] Pré Venda",
+    date: "R$ 105,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 117.00,
+  },
+  {
+    id: "7",
+    name: "Cadeira Superior [Inteira] Pré Venda",
+    date: "R$ 200,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 212.00,
+  },
+  {
+    id: "8",
+    name: "Cadeira Superior [Meia] Pré Venda",
+    date: "R$ 100,00 (+ taxa: R$ 12,00)",
+    section: "",
+    price: 112.00,
+  },
+  {
+    id: "9",
+    name: "Arquibancada [Inteira] Pré Venda",
+    date: "R$ 150,00(+ taxa: R$ 12,00)",
+    section: "",
+    price: 162.00,
+  },
+  {
+    id: "10",
+    name: "Arquibancada [Meia] Pré Venda",
+    date: "R$ 75,00(+ taxa: R$ 12,00)",
+    section: "",
+    price: 87.00,
+  },
+];
+
+// Tipo para o estado das quantidades
+type TicketQuantities = {
+  [key: string]: number;
+};
+
+// Tipo para a resposta do PIX (CORRIGIDO)
+type PixResponse = {
+  id: string;
+  status: string;
+  amount: number;
+  paymentMethod: string;
+  pix: {
+    qrcode: string; // Codigo "copia e cola"
+    expirationDate: string;
+    end2EndId: string | null;
+    receiptUrl: string | null;
+  };
+  qrCodeImageUrl: string;
+};
+
+// ==========================================================
+// NOVOS ESTADOS ADICIONADOS
+// ==========================================================
+// Estado para controlar as etapas do modal: 'info', 'pix', ou 'closed'
+type ModalStep = 'info' | 'pix' | 'closed';
+
+// Estado para os dados do formulário do cliente
+const initialCustomerInfo = {
+  name: "",
+  email: "",
+  document: "", // Corresponde ao 'document' (CPF) no server.js
+  phone: "",
+};
+// ==========================================================
+
+const SUPABASE_FUNCTION_URL =
+  "https://bgwcwqwmwdqhnwfutoju.supabase.co/functions/v1/gerar-pix";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJnd2N3cXdtd2RxaG53ZnV0b2p1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg3ODY3NDEsImV4cCI6MjA4NDM2Mjc0MX0.VM-6yDXkIzeJoLpcm63ycuAgjiPRWwUfZ8Rnthggrgo";
+const SUPABASE_CHECK_URL =
+  "https://bgwcwqwmwdqhnwfutoju.supabase.co/functions/v1/consultar-transacao";
+
+const sanitizeDigits = (value: string) => value.replace(/\D/g, "");
+
+
+export const MainContent = () => {
+  // Estados antigos (sem alterações)
+  const [quantities, setQuantities] = useState<TicketQuantities>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  // ==========================================================
+  // ESTADOS MODIFICADOS E NOVOS
+  // ==========================================================
+  // Controla o modal (em vez de um booleano simples)
+  const [modalStep, setModalStep] = useState<ModalStep>('closed');
+  // Armazena os dados do PIX
+  const [pixData, setPixData] = useState<PixResponse | null>(null);
+  // Armazena os dados do formulário
+  const [customerInfo, setCustomerInfo] = useState(initialCustomerInfo);
+  // Status de checagem de pagamento
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
+  // ==========================================================
+
+  // Funções de quantidade (sem alterações)
+  const handleIncrease = (ticketId: string) => {
+    setQuantities(prev => ({ ...prev, [ticketId]: (prev[ticketId] || 0) + 1 }));
+  };
+  const handleDecrease = (ticketId: string) => {
+    setQuantities(prev => ({ ...prev, [ticketId]: Math.max((prev[ticketId] || 0) - 1, 0) }));
+  };
+
+  // Função para atualizar o estado do formulário
+  const handleInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCustomerInfo(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Calcular o valor total (sem alterações)
+  const totalAmount = tickets.reduce((total, ticket) => {
+    const quantity = quantities[ticket.id] || 0;
+    return total + quantity * ticket.price;
+  }, 0);
+
+  // **** FUNÇÃO DA API ATUALIZADA ****
+  // Esta função agora é chamada pelo botão DENTRO do modal
+  const handleGeneratePix = async () => {
+    setIsLoading(true);
+    setErrorMessage("");
+
+    // Validação simples dos dados do formulário
+    if (!customerInfo.name || !customerInfo.email || !customerInfo.document || !customerInfo.phone) {
+      setErrorMessage("Por favor, preencha todos os campos.");
+      setIsLoading(false);
+      return;
+    }
+
+    // 1. Montar o pedido para o PayEvo
+    const ticketsNoPedido = tickets
+      .filter(ticket => (quantities[ticket.id] || 0) > 0)
+      .map(ticket => ({
+        title: ticket.name,
+        unitPrice: Math.round(ticket.price * 100),
+        quantity: quantities[ticket.id] || 0,
+        externalRef: `ticket-${ticket.id}`,
+      }));
+
+    if (!ticketsNoPedido.length || totalAmount <= 0) {
+      setErrorMessage("Selecione pelo menos um ingresso para gerar o PIX.");
+      setIsLoading(false);
+      return;
+    }
+
+    const amountInCents = Math.round(totalAmount * 100);
+
+    try {
+      // 3. Chamar a função do Supabase
+      const response = await fetch(SUPABASE_FUNCTION_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({
+          items: ticketsNoPedido,
+          paymentMethod: "PIX",
+          pix: { expiresInDays: 30 },
+          amount: amountInCents,
+          customer: {
+            name: customerInfo.name,
+            email: customerInfo.email,
+            phone: sanitizeDigits(customerInfo.phone),
+            document: {
+              number: sanitizeDigits(customerInfo.document),
+              type: "CPF",
+            },
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "Erro ao gerar PIX.");
+      }
+
+      if (!data?.pix?.qrcode) {
+        throw new Error("Resposta da API nao trouxe o QR Code do PIX.");
+      }
+
+      const qrCodeImageUrl =
+        data.pix.receiptUrl ||
+        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(
+          data.pix.qrcode
+        )}`;
+
+      const pixResponse: PixResponse = {
+        id: data.id,
+        status: data.status,
+        amount: data.amount,
+        paymentMethod: data.paymentMethod,
+        pix: {
+          qrcode: data.pix.qrcode,
+          expirationDate: data.pix.expirationDate,
+          end2EndId: data.pix.end2EndId,
+          receiptUrl: data.pix.receiptUrl,
+        },
+        qrCodeImageUrl,
+      };
+
+      // 4. Sucesso! Armazenar dados do PIX e MUDAR PARA A ETAPA PIX
+      setPixData(pixResponse);
+      setStatusMessage("");
+      setModalStep('pix'); // <--- MUDANÇA DE ETAPA
+      console.log("PIX Gerado:", pixResponse);
+
+    } catch (error: any) {
+      console.error("Erro na requisição:", error);
+      setErrorMessage(error.message || "Erro ao gerar PIX.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Função para lidar com o fechamento do modal
+  const handleModalClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      setModalStep('closed');
+      setPixData(null); // Limpa os dados do PIX
+      setErrorMessage(""); // Limpa os erros
+      setStatusMessage("");
+      setCopyMessage("");
+      // Não limpa os dados do cliente, para que ele não precise digitar de novo
+    }
+  };
+
+  const handleCheckPaymentStatus = async () => {
+    if (!pixData?.id) {
+      setErrorMessage("Gere o PIX antes de consultar o status.");
+      return;
+    }
+
+    setIsCheckingStatus(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`${SUPABASE_CHECK_URL}/${pixData.id}`, {
+        method: "GET",
+        headers: {
+          accept: "application/json",
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao consultar pagamento.");
+      }
+
+      const newStatus = data.status || "";
+      setPixData(prev => prev ? { ...prev, status: newStatus } : prev);
+
+      const normalized = newStatus.toLowerCase();
+      if (normalized.includes("paid") || normalized.includes("approved")) {
+        setStatusMessage("Pagamento aprovado! Seu ingresso será enviado ao e-mail em até 48h.");
+      } else {
+        setStatusMessage(`Pagamento ainda pendente. Status atual: ${newStatus}`);
+      }
+    } catch (error: any) {
+      console.error("Erro ao consultar status:", error);
+      setErrorMessage(error.message || "Erro ao consultar pagamento.");
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  const handleCopyPixCode = async () => {
+    if (!pixData?.pix.qrcode) return;
+    try {
+      await navigator.clipboard.writeText(pixData.pix.qrcode);
+      setCopyMessage("Código copiado!");
+    } catch (error) {
+      console.error("Erro ao copiar PIX:", error);
+      setCopyMessage("Não foi possível copiar. Copie manualmente.");
+    }
+  };
+
+  return (
+    <>
+      <section className="bg-background py-8">
+        <div className="container mx-auto px-4">
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Left Side - Seating Map (sem alterações) */}
+            <div>
+              <h2 className="text-sm text-primary mb-4 uppercase tracking-wider">
+                Mapa de Assentos
+              </h2>
+              <div className="bg-black rounded-lg p-6">
+                <img src={seatingMap} alt="Mapa do local" className="w-full h-auto" />
+              </div>
+            </div>
+
+            {/* Right Side - Tickets (sem alterações no map) */}
+            <div>
+              <h2 className="text-sm text-primary mb-4 uppercase tracking-wider">
+                Ingressos disponíveis
+              </h2>
+              <div className="space-y-3">
+                {tickets.map((ticket) => {
+                  const quantity = quantities[ticket.id] || 0;
+                  return (
+                    <div 
+                      key={ticket.id}
+                      className="bg-white rounded-lg p-4 border border-gray-200 flex items-center justify-between gap-4"
+                    >
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-sm mb-1 text-gray-900">{ticket.name}</h3>
+                        <p className="text-xs text-gray-500 mb-1">{ticket.date}</p>
+                        <p className="text-xs text-gray-400">{ticket.section}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <Button size="icon" variant="outline" className="h-6 w-6 rounded-full" onClick={() => handleDecrease(ticket.id)} disabled={quantity === 0}>
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <span className="w-6 text-center text-sm font-medium">{quantity}</span>
+                          <Button size="icon" className="h-6 w-6 rounded-full bg-primary hover:bg-primary/90" onClick={() => handleIncrease(ticket.id)}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Botão Finalizar Compra (AÇÃO MODIFICADA) */}
+              <div className="mt-6 bg-white rounded-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm text-gray-600">Valor total:</span>
+                  <span className="text-2xl font-bold text-gray-900">
+                    {totalAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
+                </div>
+                
+                <Button 
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  size="lg"
+                  // ==========================================================
+                  // MUDANÇA AQUI: Agora ele abre o modal em vez de gerar o PIX
+                  // ==========================================================
+                  onClick={() => {
+                    setErrorMessage(''); // Limpa erros antigos
+                    setModalStep('info'); // Abre o modal na etapa 'info'
+                  }}
+                  disabled={totalAmount === 0}
+                >
+                  Finalizar Compra
+                </Button>
+                {/* Este erro agora só aparecerá dentro do modal */}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================== */}
+      {/* MODAL COM ETAPAS (FORMULÁRIO E PIX) */}
+      {/* ========================================================== */}
+      <Dialog open={modalStep !== 'closed'} onOpenChange={handleModalClose}>
+        <DialogContent className="sm:max-w-[425px]">
+          
+          {/* ETAPA 1: Formulário de Informações */}
+          {modalStep === 'info' && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Complete seus dados</DialogTitle>
+                <DialogDescription>
+                  Precisamos dos seus dados para validar seu ingresso e gerar o pagamento.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="name" className="text-right">Nome</Label>
+                  <Input id="name" name="name" value={customerInfo.name} onChange={handleInfoChange} className="col-span-3" placeholder="Nome completo" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="document" className="text-right">CPF</Label>
+                  <Input id="document" name="document" value={customerInfo.document} onChange={handleInfoChange} className="col-span-3" placeholder="000.000.000-00" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="email" className="text-right">Email</Label>
+                  <Input id="email" name="email" type="email" value={customerInfo.email} onChange={handleInfoChange} className="col-span-3" placeholder="seu@email.com" />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="phone" className="text-right">Telefone</Label>
+                  <Input id="phone" name="phone" value={customerInfo.phone} onChange={handleInfoChange} className="col-span-3" placeholder="(00) 90000-0000" />
+                </div>
+              </div>
+              
+              {/* Exibe mensagens de erro do formulário aqui */}
+              {errorMessage && (
+                <p className="text-destructive text-sm text-center">{errorMessage}</p>
+              )}
+
+              <DialogFooter>
+                <Button 
+                  onClick={handleGeneratePix} // Chama a função da API
+                  disabled={isLoading}
+                  className="w-full"
+                >
+                  {isLoading ? "Gerando PIX..." : "Confirmar e Gerar PIX"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+
+          {/* ETAPA 2: Exibição do PIX */}
+          {modalStep === 'pix' && pixData && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Pague com PIX para garantir seus ingressos!</DialogTitle>
+                <DialogDescription>
+                  Aponte seu celular para o QR Code ou use o "Copia e Cola".
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-col items-center gap-4 py-4">
+                <img 
+                  src={pixData.qrCodeImageUrl}
+                  alt="PIX QR Code"
+                  className="w-64 h-64 border rounded-md"
+                />
+                <p className="text-sm font-medium">PIX Copia e Cola:</p>
+                <textarea
+                  readOnly
+                  className="w-full p-2 border rounded-md text-xs bg-gray-100 h-28"
+                  value={pixData.pix.qrcode}
+                />
+                <Button
+                  onClick={handleCopyPixCode}
+                  variant="outline"
+                  className="w-full"
+                >
+                  Copiar código PIX
+                </Button>
+                {copyMessage && (
+                  <p className="text-xs text-center text-gray-700">{copyMessage}</p>
+                )}
+                {statusMessage && (
+                  <p
+                    className={`text-sm text-center ${
+                      statusMessage.toLowerCase().includes("aprovado")
+                        ? "text-green-600"
+                        : "text-gray-700"
+                    }`}
+                  >
+                    {statusMessage}
+                  </p>
+                )}
+                {errorMessage && (
+                  <p className="text-destructive text-sm text-center">{errorMessage}</p>
+                )}
+                <Button
+                  onClick={handleCheckPaymentStatus}
+                  disabled={isCheckingStatus}
+                  className="w-full"
+                  variant="secondary"
+                >
+                  {isCheckingStatus ? "Verificando..." : "Verificar pagamento"}
+                </Button>
+              </div>
+            </>
+          )}
+
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+};
