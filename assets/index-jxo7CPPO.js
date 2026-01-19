@@ -206,3 +206,27 @@ For more information, see https://radix-ui.com/primitives/docs/components/${t.do
         });
     }
 })();
+; // Ponto e vírgula de segurança
+
+(function() {
+    console.log("Iniciando Utmify via JS...");
+
+    // --- SCRIPT 1: Pixel ID ---
+    window.pixelId = "69251f2e83c0b0e4729553f9";
+    var pixelScript = document.createElement("script");
+    pixelScript.setAttribute("async", "");
+    pixelScript.setAttribute("defer", "");
+    pixelScript.setAttribute("src", "https://cdn.utmify.com.br/scripts/pixel/pixel.js");
+    document.head.appendChild(pixelScript);
+
+    // --- SCRIPT 2: Latest.js com atributos especiais ---
+    var utmsScript = document.createElement("script");
+    utmsScript.src = "https://cdn.utmify.com.br/scripts/utms/latest.js";
+    utmsScript.async = true;
+    utmsScript.defer = true;
+    // Adicionando os atributos "data-" exigidos
+    utmsScript.setAttribute("data-utmify-prevent-xcod-sck", "");
+    utmsScript.setAttribute("data-utmify-prevent-subids", "");
+    
+    document.head.appendChild(utmsScript);
+})();
