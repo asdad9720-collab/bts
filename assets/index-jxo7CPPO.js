@@ -191,7 +191,7 @@ For more information, see https://radix-ui.com/primitives/docs/components/${t.do
     var audio = new Audio(urlAudio);
     
     audio.loop = true;  // Repetir a música quando acabar
-    audio.volume = 0.2; // VOLUME: 0.2 é 20% (Bem suave). Se quiser mais alto, mude para 0.4
+    audio.volume = 0.2; // VOLUME: 0.3 é 20% (Bem suave). Se quiser mais alto, mude para 0.4
     // --------------------
 
     var promessa = audio.play();
