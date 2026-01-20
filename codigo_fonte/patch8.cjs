@@ -1,0 +1,1 @@
+const fs = require('fs');const path='src/components/MainContent.tsx';let t=fs.readFileSync(path,'utf8');const target='          },\n        }),';if(!t.includes('tracking_parameters')){t=t.replace(target,'          },\n          tracking_parameters: trackingParams,\n        }),');fs.writeFileSync(path,t);} 

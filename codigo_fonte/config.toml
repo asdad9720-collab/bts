@@ -1,0 +1,7 @@
+project_id = "pdtxtfewkkbxnpwnnznj"
+
+[functions.send-to-utmify-payevo]
+verify_jwt = false
+
+[functions.track-payevo-payment]
+verify_jwt = false

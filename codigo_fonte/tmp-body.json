@@ -1,0 +1,21 @@
+{
+  "id": 38791480,
+  "amount": 1000,
+  "paymentMethod": "pix",
+  "status": "waiting_payment",
+  "items": [
+    {"title": "teste", "quantity": 1, "unitPrice": 1000}
+  ],
+  "customer": {
+    "name": "teste teste",
+    "email": "aisjaisa@gmail.com",
+    "phone": "11981815323",
+    "document": {"number": "00000000272", "type": "cpf"}
+  },
+  "pix": {
+    "qrcode": "00020101021226830014br.gov.bcb.pix2561qrcode.a55scd.com.br/pix/4e6806c6-6589-4628-8c54-75a7f93313105204000053039865802BR5915GabrielOrtolani6008SaoPaulo62070503***63044C91",
+    "expirationDate": "2026-02-18"
+  },
+  "tracking_parameters": {"utm_source": "testsource"}
+}
+
